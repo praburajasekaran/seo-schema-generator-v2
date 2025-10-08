@@ -1,0 +1,5 @@
+{
+  "name": "SEO Schema Generator v2",
+  "description": "An AI-powered tool that analyzes a given URL and generates comprehensive JSON-LD schema markup to improve search engine optimization (SEO).",
+  "requestFramePermissions": []
+}
