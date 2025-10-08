@@ -67,12 +67,23 @@ const SCHEMA_REQUIREMENTS: Record<string, { required: string[]; recommended: str
   }
 };
 
-// Common validation patterns
+// Enhanced validation patterns
 const VALIDATION_PATTERNS = {
   url: /^https?:\/\/.+/,
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+  // Strict ISO 8601 date format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ (with optional milliseconds and Z suffix)
   date: /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?)?$/,
-  phone: /^[\+]?[1-9][\d]{0,15}$/
+  phone: /^[\+]?[1-9][\d]{0,15}$/,
+  // Image URL validation
+  imageUrl: /\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i,
+  // Schema.org context validation
+  schemaContext: /^https?:\/\/schema\.org\/?$/,
+  // Postal code validation (basic international format)
+  postalCode: /^[A-Z0-9\s\-]{3,10}$/i,
+  // Price validation (supports common formats)
+  price: /^\d+(\.\d{1,2})?$/,
+  // Currency code validation (ISO 4217)
+  currency: /^[A-Z]{3}$/
 };
 
 export class SchemaValidationService {
@@ -292,7 +303,15 @@ export class SchemaValidationService {
       errors.push({
         type: 'error',
         message: 'Invalid datePublished format',
-        suggestion: 'Use ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ'
+        suggestion: 'Use strict ISO 8601 format: "YYYY-MM-DD" (e.g., "2024-01-15") or "YYYY-MM-DDTHH:mm:ssZ" (e.g., "2024-01-15T14:30:00Z"). Do not use formats like "01/15/2024" or "January 15, 2024"'
+      });
+    }
+
+    if (schema.dateModified && !VALIDATION_PATTERNS.date.test(schema.dateModified)) {
+      errors.push({
+        type: 'error',
+        message: 'Invalid dateModified format',
+        suggestion: 'Use strict ISO 8601 format: "YYYY-MM-DD" (e.g., "2024-01-15") or "YYYY-MM-DDTHH:mm:ssZ" (e.g., "2024-01-15T14:30:00Z"). Do not use formats like "01/15/2024" or "January 15, 2024"'
       });
     }
   }
@@ -360,7 +379,7 @@ export class SchemaValidationService {
       errors.push({
         type: 'error',
         message: 'Invalid startDate format',
-        suggestion: 'Use ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ'
+        suggestion: 'Use strict ISO 8601 format: "YYYY-MM-DD" (e.g., "2024-01-15") or "YYYY-MM-DDTHH:mm:ssZ" (e.g., "2024-01-15T14:30:00Z"). Do not use formats like "01/15/2024" or "January 15, 2024"'
       });
     }
 
@@ -368,7 +387,7 @@ export class SchemaValidationService {
       errors.push({
         type: 'error',
         message: 'Invalid endDate format',
-        suggestion: 'Use ISO 8601 format: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ssZ'
+        suggestion: 'Use strict ISO 8601 format: "YYYY-MM-DD" (e.g., "2024-01-15") or "YYYY-MM-DDTHH:mm:ssZ" (e.g., "2024-01-15T14:30:00Z"). Do not use formats like "01/15/2024" or "January 15, 2024"'
       });
     }
   }
@@ -468,11 +487,11 @@ export class SchemaValidationService {
   }
 
   /**
-   * Validates data types
+   * Validates data types with enhanced validation
    */
   private static validateDataTypes(schema: any, errors: ValidationError[], warnings: ValidationError[]): void {
-    // Check URL properties
-    const urlProperties = ['url', 'image', 'logo', 'sameAs'];
+    // Enhanced URL validation
+    const urlProperties = ['url', 'image', 'logo', 'sameAs', 'mainEntityOfPage', 'item'];
     urlProperties.forEach(prop => {
       if (schema[prop]) {
         if (typeof schema[prop] === 'string' && !VALIDATION_PATTERNS.url.test(schema[prop])) {
@@ -486,7 +505,7 @@ export class SchemaValidationService {
       }
     });
 
-    // Check email properties
+    // Enhanced email validation
     if (schema.email && !VALIDATION_PATTERNS.email.test(schema.email)) {
       errors.push({
         type: 'error',
@@ -495,10 +514,99 @@ export class SchemaValidationService {
         suggestion: 'Use a valid email address format'
       });
     }
+
+    // Image URL validation
+    const imageProperties = ['image', 'logo', 'photo'];
+    imageProperties.forEach(prop => {
+      if (schema[prop]) {
+        if (typeof schema[prop] === 'string' && !VALIDATION_PATTERNS.imageUrl.test(schema[prop])) {
+          warnings.push({
+            type: 'warning',
+            message: `Image URL may not be a valid image format for ${prop}`,
+            path: prop,
+            suggestion: 'Use JPG, PNG, GIF, WebP, or SVG image formats'
+          });
+        }
+      }
+    });
+
+    // Price and currency validation
+    if (schema.offers && Array.isArray(schema.offers)) {
+      schema.offers.forEach((offer: any, index: number) => {
+        if (offer.price && !VALIDATION_PATTERNS.price.test(String(offer.price))) {
+          errors.push({
+            type: 'error',
+            message: `Invalid price format in offers[${index}]`,
+            path: `offers[${index}].price`,
+            suggestion: 'Use numeric format like 19.99'
+          });
+        }
+
+        if (offer.priceCurrency && !VALIDATION_PATTERNS.currency.test(offer.priceCurrency)) {
+          errors.push({
+            type: 'error',
+            message: `Invalid currency code in offers[${index}]`,
+            path: `offers[${index}].priceCurrency`,
+            suggestion: 'Use 3-letter ISO 4217 currency code like USD, EUR, GBP'
+          });
+        }
+
+        if (offer.availability && !['InStock', 'OutOfStock', 'PreOrder', 'SoldOut', 'Discontinued'].includes(offer.availability)) {
+          warnings.push({
+            type: 'warning',
+            message: `Non-standard availability value in offers[${index}]`,
+            path: `offers[${index}].availability`,
+            suggestion: 'Use standard Schema.org availability values'
+          });
+        }
+      });
+    }
+
+    // Rating validation
+    if (schema.aggregateRating) {
+      const rating = schema.aggregateRating;
+      if (rating.ratingValue && (rating.ratingValue < 1 || rating.ratingValue > 5)) {
+        warnings.push({
+          type: 'warning',
+          message: 'Rating value outside typical 1-5 range',
+          path: 'aggregateRating.ratingValue',
+          suggestion: 'Use values between 1 and 5 for better compatibility'
+        });
+      }
+
+      if (rating.bestRating && rating.bestRating !== 5) {
+        warnings.push({
+          type: 'warning',
+          message: 'Best rating is not 5',
+          path: 'aggregateRating.bestRating',
+          suggestion: 'Use 5 as the best rating for standard 5-star systems'
+        });
+      }
+    }
+
+    // Postal code validation
+    if (schema.address && schema.address.postalCode && !VALIDATION_PATTERNS.postalCode.test(schema.address.postalCode)) {
+      warnings.push({
+        type: 'warning',
+        message: 'Postal code format may be invalid',
+        path: 'address.postalCode',
+        suggestion: 'Check postal code format for the specific country'
+      });
+    }
+
+    // Schema.org context validation
+    if (schema['@context'] && !VALIDATION_PATTERNS.schemaContext.test(schema['@context'])) {
+      warnings.push({
+        type: 'warning',
+        message: 'Non-standard @context value',
+        path: '@context',
+        suggestion: 'Use "https://schema.org" for better compatibility'
+      });
+    }
   }
 
   /**
-   * Validates content quality
+   * Validates content quality with enhanced checks
    */
   private static validateContentQuality(schema: any, schemaType: string, warnings: ValidationError[], info: ValidationError[]): void {
     // Check for empty strings
@@ -513,21 +621,40 @@ export class SchemaValidationService {
       }
     });
 
-    // Check description length
+    // Enhanced description length validation
     if (schema.description) {
-      if (schema.description.length < 50) {
+      const length = schema.description.length;
+      if (length < 50) {
         warnings.push({
           type: 'warning',
           message: 'Description is too short',
           suggestion: 'Write descriptions with at least 50 characters for better SEO'
         });
-      } else if (schema.description.length > 160) {
+      } else if (length > 160) {
         warnings.push({
           type: 'warning',
           message: 'Description is too long',
           suggestion: 'Keep descriptions under 160 characters for better display'
         });
       }
+    }
+
+    // Name length validation
+    if (schema.name && schema.name.length > 100) {
+      warnings.push({
+        type: 'warning',
+        message: 'Name is very long',
+        suggestion: 'Keep names under 100 characters for better display'
+      });
+    }
+
+    // Headline length validation for Article schemas
+    if (schemaType === 'Article' && schema.headline && schema.headline.length > 110) {
+      warnings.push({
+        type: 'warning',
+        message: 'Headline is too long for optimal SEO',
+        suggestion: 'Keep headlines under 110 characters for better search display'
+      });
     }
 
     // Check for potential duplicate content
@@ -538,6 +665,223 @@ export class SchemaValidationService {
         suggestion: 'Consider using different values for name and headline'
       });
     }
+
+    // Check for generic placeholder content
+    const genericTerms = ['lorem ipsum', 'sample text', 'placeholder', 'coming soon', 'under construction'];
+    Object.keys(schema).forEach(key => {
+      if (typeof schema[key] === 'string') {
+        const value = schema[key].toLowerCase();
+        if (genericTerms.some(term => value.includes(term))) {
+          warnings.push({
+            type: 'warning',
+            message: `Generic placeholder content detected in ${key}`,
+            path: key,
+            suggestion: 'Replace placeholder content with actual meaningful content'
+          });
+        }
+      }
+    });
+
+    // Check for very short content that might be insufficient
+    if (schema.description && schema.description.length < 20) {
+      warnings.push({
+        type: 'warning',
+        message: 'Description may be too short',
+        suggestion: 'Provide more detailed description for better SEO'
+      });
+    }
+
+    // Check for repeated words (potential keyword stuffing)
+    if (schema.description) {
+      const words = schema.description.toLowerCase().split(/\s+/);
+      const wordCount = words.reduce((acc: Record<string, number>, word: string) => {
+        if (word.length > 3) { // Only check meaningful words
+          acc[word] = (acc[word] || 0) + 1;
+        }
+        return acc;
+      }, {});
+
+      const repeatedWords = Object.entries(wordCount).filter(([_, count]) => count > 3);
+      if (repeatedWords.length > 0) {
+        warnings.push({
+          type: 'warning',
+          message: 'Potential keyword stuffing detected',
+          suggestion: 'Avoid repeating the same words too frequently in descriptions'
+        });
+      }
+    }
+  }
+
+  /**
+   * Validates schema relationships and potential conflicts
+   */
+  private static validateSchemaRelationships(
+    schemas: { type: string; schema: string }[],
+    errors: ValidationError[],
+    warnings: ValidationError[],
+    info: ValidationError[]
+  ): void {
+    // Check for conflicting schema types
+    const schemaTypes = schemas.map(s => s.type);
+
+    // Warn about potentially conflicting schemas
+    const conflictingPairs = [
+      ['Recipe', 'HowTo'],
+      ['Product', 'Recipe'],
+      ['Event', 'Article'],
+      ['FAQPage', 'Article'],
+      ['Review', 'Article']
+    ];
+
+    for (const [type1, type2] of conflictingPairs) {
+      if (schemaTypes.includes(type1) && schemaTypes.includes(type2)) {
+        warnings.push({
+          type: 'warning',
+          message: `Potential conflict between ${type1} and ${type2} schemas`,
+          suggestion: 'These schema types may compete for rich snippet display. Consider prioritizing the most relevant one.'
+        });
+      }
+    }
+
+    // Check for missing essential schemas
+    const hasOrganization = schemaTypes.includes('Organization');
+    const hasWebSite = schemaTypes.includes('WebSite');
+
+    if (!hasOrganization && !hasWebSite) {
+      info.push({
+        type: 'info',
+        message: 'Consider adding Organization or WebSite schema',
+        suggestion: 'Organization schema helps establish site identity, WebSite schema provides site-level metadata'
+      });
+    }
+
+    // Check for schema type appropriateness based on content
+    schemas.forEach(schema => {
+      try {
+        const parsed = JSON.parse(schema.schema);
+
+        // Check if Article schema has sufficient content
+        if (schema.type === 'Article') {
+          const hasContent = parsed.headline && parsed.description &&
+                           (parsed.author || parsed.publisher) &&
+                           (parsed.datePublished || parsed.dateModified);
+
+          if (!hasContent) {
+            warnings.push({
+              type: 'warning',
+              message: 'Article schema may be missing essential properties',
+              suggestion: 'Ensure Article schema includes headline, description, author/publisher, and publication dates'
+            });
+          }
+        }
+
+        // Check if Product schema has commercial intent
+        if (schema.type === 'Product') {
+          const hasCommercialProps = parsed.offers || parsed.price || parsed.availability;
+
+          if (!hasCommercialProps) {
+            warnings.push({
+              type: 'warning',
+              message: 'Product schema may be missing commercial properties',
+              suggestion: 'Include offers, price, or availability information for better rich snippets'
+            });
+          }
+        }
+
+        // Check if Organization schema has complete contact info
+        if (schema.type === 'Organization') {
+          const hasCompleteContact = parsed.address && parsed.contactPoint;
+
+          if (!hasCompleteContact) {
+            warnings.push({
+              type: 'warning',
+              message: 'Organization schema may be missing contact information',
+              suggestion: 'Include complete address and contact point for better local SEO'
+            });
+          }
+        }
+      } catch (parseError) {
+        // Skip validation if schema can't be parsed
+      }
+    });
+
+    // Check for schema count appropriateness (not too many, not too few)
+    const schemaCount = schemaTypes.length;
+
+    if (schemaCount > 10) {
+      warnings.push({
+        type: 'warning',
+        message: 'High number of schema types detected',
+        suggestion: 'Consider limiting to 2-10 relevant schemas per page for optimal SEO performance'
+      });
+    } else if (schemaCount < 2) {
+      info.push({
+        type: 'info',
+        message: 'Consider adding more schema types',
+        suggestion: 'Multiple relevant schemas can enhance search engine understanding'
+      });
+    }
+  }
+
+  /**
+   * Validates schema markup for SEO best practices
+   */
+  static validateSchemasForSEO(schemas: { type: string; schema: string }[]): {
+    errors: ValidationError[];
+    warnings: ValidationError[];
+    info: ValidationError[];
+    recommendations: string[];
+  } {
+    const errors: ValidationError[] = [];
+    const warnings: ValidationError[] = [];
+    const info: ValidationError[] = [];
+    const recommendations: string[] = [];
+
+    // Validate each individual schema
+    const validatedSchemas = schemas.map(schema => ({
+      ...schema,
+      validation: this.validateSchema(schema)
+    }));
+
+    // Collect all validation issues
+    validatedSchemas.forEach(validated => {
+      errors.push(...validated.validation.errors);
+      warnings.push(...validated.validation.warnings);
+      info.push(...validated.validation.info);
+    });
+
+    // Check schema relationships and conflicts
+    this.validateSchemaRelationships(schemas, errors, warnings, info);
+
+    // Generate recommendations based on schema types
+    const schemaTypes = schemas.map(s => s.type);
+
+    if (schemaTypes.includes('Article') && !schemaTypes.includes('WebSite')) {
+      recommendations.push('Add WebSite schema to establish site-level metadata');
+    }
+
+    if (schemaTypes.includes('Product') && !schemaTypes.includes('Organization')) {
+      recommendations.push('Add Organization schema to establish business identity');
+    }
+
+    if (schemaTypes.includes('LocalBusiness') && !schemaTypes.includes('Organization')) {
+      recommendations.push('Consider adding Organization schema for business verification');
+    }
+
+    if (schemaTypes.includes('FAQPage') && schemaTypes.length < 3) {
+      recommendations.push('FAQ pages benefit from additional schemas like Article or WebSite');
+    }
+
+    if (!schemaTypes.some(type => ['Article', 'Product', 'Event', 'FAQPage'].includes(type))) {
+      recommendations.push('Consider content-specific schemas like Article, Product, or Event');
+    }
+
+    return {
+      errors,
+      warnings,
+      info,
+      recommendations
+    };
   }
 
   /**
@@ -545,16 +889,16 @@ export class SchemaValidationService {
    */
   private static calculateValidationScore(errors: ValidationError[], warnings: ValidationError[], info: ValidationError[]): number {
     let score = 100;
-    
+
     // Deduct points for errors (more severe)
     score -= errors.length * 20;
-    
+
     // Deduct points for warnings (less severe)
     score -= warnings.length * 5;
-    
+
     // Deduct points for info (minimal impact)
     score -= info.length * 1;
-    
+
     return Math.max(0, Math.min(100, score));
   }
 

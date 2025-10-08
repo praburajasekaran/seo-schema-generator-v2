@@ -214,10 +214,131 @@ export const SchemaDisplay: React.FC<SchemaDisplayProps> = ({ schemas }) => {
 
       {/* Validation Results */}
       <div className="border-t border-slate-200 p-6 bg-gradient-to-r from-slate-50 to-blue-50">
-        <ValidationResults 
-          validation={activeSchema.validation} 
-          schemaType={activeSchema.type} 
+        <ValidationResults
+          validation={activeSchema.validation}
+          schemaType={activeSchema.type}
         />
+      </div>
+
+      {/* Implementation Instructions */}
+      <div className="border-t border-slate-200 p-6 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">?</span>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">How to Implement This Schema</h3>
+          </div>
+
+          {/* Quick Implementation */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-blue-200 mb-6">
+            <h4 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-sm">1</span>
+              Quick Implementation
+            </h4>
+            <p className="text-slate-600 mb-4">
+              Add this JSON-LD code to the <code className="bg-slate-100 px-2 py-1 rounded text-sm font-mono">&lt;head&gt;</code> section of your HTML page:
+            </p>
+            <div className="bg-slate-900 rounded-lg p-4 font-mono text-sm text-slate-100 overflow-x-auto">
+              <div className="text-slate-400 mb-2">&lt;!-- Add this to your HTML head section --&gt;</div>
+              <div className="text-slate-400">&lt;script type="application/ld+json"&gt;</div>
+              <div className="text-slate-100 pl-4">{activeSchema.schema}</div>
+              <div className="text-slate-400">&lt;/script&gt;</div>
+            </div>
+          </div>
+
+          {/* Step-by-Step Guide */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-blue-200 mb-6">
+            <h4 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm">2</span>
+              Step-by-Step Instructions
+            </h4>
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">1</div>
+                <div>
+                  <h5 className="font-semibold text-slate-800">Copy the JSON-LD Code</h5>
+                  <p className="text-slate-600">Use the "Copy Code" button above to copy the complete schema markup</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">2</div>
+                <div>
+                  <h5 className="font-semibold text-slate-800">Open Your Website's HTML</h5>
+                  <p className="text-slate-600">Locate the HTML file for the page where you want to add the schema markup</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">3</div>
+                <div>
+                  <h5 className="font-semibold text-slate-800">Add to Head Section</h5>
+                  <p className="text-slate-600">Paste the JSON-LD script tag between the <code className="bg-slate-100 px-1 py-0.5 rounded text-sm">&lt;head&gt;</code> and <code className="bg-slate-100 px-1 py-0.5 rounded text-sm">&lt;/head&gt;</code> tags</p>
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">4</div>
+                <div>
+                  <h5 className="font-semibold text-slate-800">Test Your Implementation</h5>
+                  <p className="text-slate-600">Use Google's Rich Results Test or Schema Markup Validator to verify your schema is working correctly</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Alternative Implementation Methods */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-blue-200 mb-6">
+            <h4 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm">3</span>
+              Alternative Implementation Methods
+            </h4>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h5 className="font-semibold text-slate-800">WordPress</h5>
+                <p className="text-slate-600 text-sm">Use a schema plugin like "Schema & Structured Data for WP" or add the code to your theme's header.php file</p>
+              </div>
+              <div className="space-y-3">
+                <h5 className="font-semibold text-slate-800">Shopify</h5>
+                <p className="text-slate-600 text-sm">Add the JSON-LD to your theme.liquid file in the head section, or use the Google Tag Manager method</p>
+              </div>
+              <div className="space-y-3">
+                <h5 className="font-semibold text-slate-800">Google Tag Manager</h5>
+                <p className="text-slate-600 text-sm">Create a custom HTML tag with the JSON-LD script and add it to your GTM container</p>
+              </div>
+              <div className="space-y-3">
+                <h5 className="font-semibold text-slate-800">JavaScript/React</h5>
+                <p className="text-slate-600 text-sm">Add the script tag dynamically using document.head.appendChild() or use a library like react-helmet</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Testing and Validation */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 border border-green-200">
+            <h4 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
+              <span className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-sm">4</span>
+              Testing & Validation
+            </h4>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-2">Recommended Tools:</h5>
+                <ul className="space-y-2 text-sm text-slate-600">
+                  <li>• <strong>Google Rich Results Test</strong> - Test for rich snippet eligibility</li>
+                  <li>• <strong>Schema Markup Validator</strong> - Validate JSON-LD syntax</li>
+                  <li>• <strong>Google Search Console</strong> - Monitor schema performance</li>
+                  <li>• <strong>Structured Data Testing Tool</strong> - Alternative validation tool</li>
+                </ul>
+              </div>
+              <div>
+                <h5 className="font-semibold text-slate-800 mb-2">Best Practices:</h5>
+                <ul className="space-y-2 text-sm text-slate-600">
+                  <li>• Test on the actual live URL, not just localhost</li>
+                  <li>• Wait 24-48 hours for search engines to recrawl</li>
+                  <li>• Use only one schema type per page when possible</li>
+                  <li>• Ensure schema data matches your page content</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
