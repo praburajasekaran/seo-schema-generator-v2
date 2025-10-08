@@ -77,18 +77,35 @@ const App: React.FC = () => {
       }
       
       if (Array.isArray(parsedResult) && parsedResult.length > 0 && parsedResult.every(item => item.schema && item.type)) {
-         // Pretty-print the JSON-LD string within each object
+        // Process each schema to ensure it's properly formatted
         const prettySchemas = parsedResult.map(item => {
           try {
-            return {
-              ...item,
-              schema: JSON.stringify(JSON.parse(item.schema), null, 2)
-            };
+            // If schema is already a properly formatted JSON string, use it as-is
+            if (typeof item.schema === 'string' && item.schema.trim().startsWith('{')) {
+              // Try to parse and reformat for consistency
+              const parsed = JSON.parse(item.schema);
+              return {
+                ...item,
+                schema: JSON.stringify(parsed, null, 2)
+              };
+            } else if (typeof item.schema === 'string') {
+              // It's a JSON string but might need reformatting
+              return {
+                ...item,
+                schema: item.schema
+              };
+            } else {
+              // It's an object, stringify it
+              return {
+                ...item,
+                schema: JSON.stringify(item.schema, null, 2)
+              };
+            }
           } catch (schemaParseError) {
-            devError('Failed to parse individual schema JSON:', schemaParseError);
+            devError('Failed to process schema:', schemaParseError, item);
             return {
               ...item,
-              schema: item.schema // Return original if parsing fails
+              schema: typeof item.schema === 'string' ? item.schema : JSON.stringify(item.schema || {}, null, 2)
             };
           }
         });
@@ -102,7 +119,14 @@ const App: React.FC = () => {
         return;
       }
       devError(err);
-      setError('Failed to generate schema. The URL might be inaccessible or the content is not suitable for schema generation. Please check the console for more details.');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMessage.includes('CORS') || errorMessage.includes('proxy') || errorMessage.includes('Failed to fetch') || errorMessage.includes('cross-origin')) {
+        setError('Unable to access the webpage due to CORS restrictions. This website blocks cross-origin requests, which prevents our tool from analyzing its content. Try a different URL or use the example button.');
+      } else if (errorMessage.includes('completely blocked') || errorMessage.includes('no content received')) {
+        setError('This website has very strict CORS policies that prevent any cross-origin access. Unfortunately, we cannot analyze this particular website. Please try a different URL or use the example button.');
+      } else {
+        setError('Failed to generate schema. The URL might be inaccessible or the content is not suitable for schema generation. Please check the console for more details.');
+      }
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
@@ -110,7 +134,7 @@ const App: React.FC = () => {
   }, []); // Empty dependency array is correct since we're not using any external dependencies
 
   const handleExample = () => {
-    const exampleUrl = 'https://blog.google/products/gemini/google-gemini-ai/';
+    const exampleUrl = 'https://example.com/';
     handleGenerateSchema(exampleUrl);
   };
   

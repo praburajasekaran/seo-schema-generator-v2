@@ -1,10 +1,6 @@
-import { GoogleGenAI, Type } from "@google/genai";
-
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable not set");
+if (!process.env.VITE_GEMINI_API_KEY) {
+    throw new Error("VITE_GEMINI_API_KEY environment variable not set");
 }
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // Development-only logging utility
 const devLog = (...args: any[]) => {
@@ -17,24 +13,6 @@ const devError = (...args: any[]) => {
   if (process.env.NODE_ENV === 'development') {
     console.error(...args);
   }
-};
-
-const schemaDefinition = {
-    type: Type.ARRAY,
-    items: {
-        type: Type.OBJECT,
-        properties: {
-            type: {
-                type: Type.STRING,
-                description: "The type of the schema (e.g., 'Article', 'Product', 'FAQPage', 'BreadcrumbList')."
-            },
-            schema: {
-                type: Type.STRING,
-                description: "Complete, valid JSON-LD schema markup for this specific type."
-            }
-        },
-        required: ["type", "schema"],
-    }
 };
 
 // Function to process HTML content and extract text
@@ -61,11 +39,11 @@ const processHtmlContent = (html: string): string => {
     return finalContent;
 };
 
-// Function to fetch webpage content using CORS proxy
+// Function to fetch webpage content using CORS proxy with multiple fallbacks
 const fetchWebpageContent = async (url: string, signal?: AbortSignal): Promise<string> => {
     try {
         devLog(`Attempting to fetch content from: ${url}`);
-        
+
         // Try direct fetch first (in case CORS allows it)
         try {
             const directResponse = await fetch(url, {
@@ -75,44 +53,110 @@ const fetchWebpageContent = async (url: string, signal?: AbortSignal): Promise<s
                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 }
             });
-            
+
             if (directResponse.ok) {
                 devLog(`Direct fetch successful`);
                 const html = await directResponse.text();
                 return processHtmlContent(html);
             }
         } catch (directError) {
-            devLog(`Direct fetch failed, trying CORS proxy: ${directError instanceof Error ? directError.message : 'Unknown error'}`);
+            devLog(`Direct fetch failed, trying CORS proxies: ${directError instanceof Error ? directError.message : 'Unknown error'}`);
         }
-        
-        // Use a CORS proxy to bypass browser CORS restrictions
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-        
-        const response = await fetch(proxyUrl, {
-            signal,
-            headers: {
-                'Accept': 'application/json',
+
+        // Multiple CORS proxy options with fallbacks (prioritized by reliability)
+        const proxies = [
+            `https://cors.eu.org/${url}`,
+            `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+            `https://cors-anywhere.herokuapp.com/${url}`,
+            `https://thingproxy.freeboard.io/fetch/${url}`
+        ];
+
+        for (let i = 0; i < proxies.length; i++) {
+            const proxyUrl = proxies[i];
+            try {
+                devLog(`Trying proxy ${i + 1}/${proxies.length}: ${proxyUrl}`);
+
+                // Create a timeout promise for this proxy attempt
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Proxy request timeout')), 10000);
+                });
+
+                const fetchPromise = fetch(proxyUrl, {
+                    signal,
+                    headers: {
+                        'Accept': proxyUrl.includes('allorigins.win') ? 'application/json' : 'text/html',
+                    }
+                });
+
+                const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+
+                devLog(`Proxy ${i + 1} response status: ${response.status} ${response.statusText}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                let html: string;
+
+                // Handle different proxy response formats
+                if (proxyUrl.includes('allorigins.win')) {
+                    const proxyResponse = await response.json();
+                    if (!proxyResponse.contents) {
+                        throw new Error("No content received from allorigins proxy");
+                    }
+                    html = proxyResponse.contents;
+                } else {
+                    // For other proxies, assume they return HTML directly
+                    html = await response.text();
+                }
+
+                if (!html || html.trim().length < 100) {
+                    throw new Error("Received empty or very short content from proxy");
+                }
+
+                devLog(`Proxy ${i + 1} successful - fetched HTML length: ${html.length} characters`);
+                return processHtmlContent(html);
+
+            } catch (proxyError) {
+                devLog(`Proxy ${i + 1} failed: ${proxyError instanceof Error ? proxyError.message : 'Unknown error'}`);
+                if (i === proxies.length - 1) {
+                    // Last proxy failed, throw error with more context
+                    throw new Error(`All CORS proxies failed. Last error: ${proxyError instanceof Error ? proxyError.message : 'Unknown error'}`);
+                }
+                // Try next proxy
+                continue;
             }
-        });
-
-        devLog(`Response status: ${response.status} ${response.statusText}`);
-        devLog(`Response headers:`, Object.fromEntries(response.headers.entries()));
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const proxyResponse = await response.json();
-        devLog(`Proxy response received`);
-        
-        if (!proxyResponse.contents) {
-            throw new Error("No content received from proxy");
+        // If all proxies failed, try one more approach with a basic fetch
+        // Some websites might allow requests from different origins
+        try {
+            devLog(`All proxies failed, trying direct fetch with no-cors mode...`);
+            const finalResponse = await fetch(url, {
+                signal,
+                mode: 'no-cors',
+                headers: {
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
+            });
+
+            if (finalResponse.type === 'opaque') {
+                // no-cors mode succeeded but we can't read the content
+                // This is better than a complete failure
+                throw new Error("Website blocks cross-origin requests completely. Try a different URL or use the example button.");
+            }
+
+            const html = await finalResponse.text();
+            if (html && html.trim().length > 100) {
+                devLog(`Direct no-cors fetch succeeded`);
+                return processHtmlContent(html);
+            }
+        } catch (finalError) {
+            devLog(`Final fallback also failed: ${finalError instanceof Error ? finalError.message : 'Unknown error'}`);
         }
-        
-        const html = proxyResponse.contents;
-        devLog(`Fetched HTML length: ${html.length} characters`);
-        
-        return processHtmlContent(html);
+
+        throw new Error("All CORS proxies and fallback methods failed. The website blocks cross-origin requests completely.");
+
     } catch (error) {
         devError('Error in fetchWebpageContent:', error);
         if (signal?.aborted) {
@@ -329,14 +373,23 @@ export const generateSchemaForUrl = async (url: string, signal?: AbortSignal): P
         }
 
         devLog("Generating schema markup...");
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: schemaDefinition,
-                temperature: 0.1, // Lower temperature for more consistent, structured output
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.VITE_GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [{
+                        text: prompt
+                    }]
+                }],
+                generationConfig: {
+                    temperature: 0.1,
+                    responseMimeType: "application/json",
+                }
+            }),
+            signal
         });
         
         // Check if the operation was cancelled after the API call
@@ -344,28 +397,53 @@ export const generateSchemaForUrl = async (url: string, signal?: AbortSignal): P
             throw new Error("Operation was cancelled");
         }
         
+        if (!response.ok) {
+            throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
+        }
+
+        const apiResponse = await response.json();
         devLog("Successfully generated schema markup");
-        const result = response.text || '';
+        const result = apiResponse.candidates?.[0]?.content?.parts?.[0]?.text || '';
         
-        // Deduplicate schemas by type as a safety measure
+        // Process and format the response as proper JSON strings
         try {
             const parsedResult = JSON.parse(result);
             if (Array.isArray(parsedResult)) {
                 const uniqueSchemas = [];
                 const seenTypes = new Set();
-                
+
                 for (const schema of parsedResult) {
                     if (schema.type && schema.schema && !seenTypes.has(schema.type)) {
                         seenTypes.add(schema.type);
-                        uniqueSchemas.push(schema);
+
+                        // Ensure schema is properly formatted as a JSON string
+                        let schemaString;
+                        if (typeof schema.schema === 'string') {
+                            // If it's already a string, try to parse and re-stringify for consistency
+                            try {
+                                const parsedSchema = JSON.parse(schema.schema);
+                                schemaString = JSON.stringify(parsedSchema, null, 2);
+                            } catch {
+                                // If parsing fails, use the original string
+                                schemaString = schema.schema;
+                            }
+                        } else {
+                            // If it's an object, stringify it
+                            schemaString = JSON.stringify(schema.schema, null, 2);
+                        }
+
+                        uniqueSchemas.push({
+                            type: schema.type,
+                            schema: schemaString
+                        });
                     }
                 }
-                
+
                 devLog(`Deduplication: Started with ${parsedResult.length} schemas, ended with ${uniqueSchemas.length} unique schemas`);
                 return JSON.stringify(uniqueSchemas);
             }
         } catch (parseError) {
-            devLog("Could not parse result for deduplication, returning original response");
+            devLog("Could not parse result for processing, returning original response");
         }
         
         return result;

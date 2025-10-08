@@ -26,8 +26,11 @@ interface ValidatedSchemaDisplay extends ValidatedSchema {
 const SyntaxHighlightedCode: React.FC<{ code: string }> = React.memo(({ code }) => {
   const highlightedHtml = useMemo(() => {
     if (!code) return '';
-    
-    let tempCode = code
+
+    // Ensure code is a string
+    const codeString = typeof code === 'string' ? code : JSON.stringify(code, null, 2);
+
+    let tempCode = codeString
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
